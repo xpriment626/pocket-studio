@@ -34,9 +34,9 @@ Paths are project-relative. `assemble` supports straight cuts, letterbox fitting
 ```sh
 pocket-studio assemble --project ./film --spec ./cut.json
 pocket-studio review --project ./film
-pocket-studio feedback --project ./film --file ./motion-feedback.json
+pocket-studio feedback --project ./film --id render-ID --sha256 SHA256 --decision revise --time 1.25 --note 'Human note' --request-id review-note-1
 ```
 
-Open the returned local review HTML for playback with sound and comparison. The human can download timestamped feedback. Import only feedback actually supplied by the user; never author an approval on their behalf. Human attribution in the JSON is caller supplied, not authenticated identity. Technical checks and agent critique cannot establish creative acceptance. Feedback is bound to a media hash; revised media requires new review.
+Prefer direct feedback from the conversation, using the exact artifact ID/hash returned by inspect and a stable request ID for retries. Use --note-file for longer notes; --file still imports older feedback JSON. Open the returned local review HTML or media file for playback with sound and comparison. If the optional local MCP adapter is configured, use project_inspect, review_show and feedback_submit. Show inline review only when the host advertises MCP Apps and can reach the local media endpoint; otherwise use the file/player fallback. Never claim that terminal MCP support guarantees inline playback. Submit only feedback actually supplied by the user; never author an approval on their behalf. Human attribution in the JSON is caller supplied, not authenticated identity. Technical checks and agent critique cannot establish creative acceptance. Feedback is bound to a media hash; revised media requires new review.
 
 Keep the project manifest, source references, authored code, render specs and feedback together for handoff between agents. No automatic publishing or cloud upload occurs. Read the installed CLI README for limitations and installation.

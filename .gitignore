@@ -11,3 +11,4 @@ dist/
 film/
 study/
 render.json
+node_modules/

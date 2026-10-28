@@ -1,0 +1,3 @@
+include ui/package.json ui/package-lock.json ui/build.mjs ui/review.js ui/review.html ui/harness.js
+recursive-include tests *.py
+recursive-include skills *.md
