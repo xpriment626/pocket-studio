@@ -223,7 +223,7 @@ python -m playwright install chromium
 python -m unittest discover -s tests -v
 ```
 
-Set `POCKET_CHROMIUM` to an installed Chromium executable if needed. The browser harness uses the official host bridge, enforced media CSP, and the real stdio adapter. It checks video/audio decoding, seeking, A/B selection, timestamp capture, persistence and failed submission. It is not a real-host compatibility test. `ui/` contains editable source and a lockfile; the generated packaged HTML includes the bridge so end users do not need Node. Rebuild and commit it when changing the UI.
+Set `POCKET_CHROMIUM` to an installed Chrome/Chromium executable with H.264 and AAC support if needed. CI explicitly uses the runner's full Google Chrome; codec support is asserted before playback rather than skipping media checks. The browser harness uses the official host bridge, enforced media CSP, and the real stdio adapter. It checks video/audio decoding, seeking, A/B selection, timestamp capture, persistence and failed submission. It is not a real-host compatibility test. `ui/` contains editable source and a lockfile; the generated packaged HTML includes the bridge so end users do not need Node. Rebuild and commit it when changing the UI.
 
 ## License
 
