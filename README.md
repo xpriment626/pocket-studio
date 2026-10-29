@@ -322,8 +322,8 @@ MCP account discovery or transport tools are claimed.
 
 ## Deferred buildout and local retest
 
-This slice builds on the unmerged headless-review branch. It does not implement
-cue-relative capture/contact sheets, transcript ingestion/comparison, timing helpers,
+This work builds on the unmerged headless-review branch. It does not implement
+contact sheets, automatic transcription/forced alignment,
 render dependency snapshots, a current-take pointer, targeted rebuilds, remote
 transfers or provider clients. Existing source references and immutable artifact
 hashes remain available; they are not an incremental-render cache.
@@ -336,3 +336,110 @@ review fallback, then test actual Codex tool discovery and native imagegen only 
 exposed. Test inline playback, sound, seeking and failure feedback in the real host
 before relying on it. Real connector authentication, folder permissions and upload
 transport E2E tests remain separate; fixture success does not establish them.
+
+## Cue-relative frame evidence
+
+Capture frames against an existing render, cut, or registered video source. Supply
+its ID and expected hash from `inspect`, plus a small capture spec:
+
+```json
+{
+  "cues": [
+    {"name": "opening", "start": 0, "end": 1},
+    {"name": "approval", "start": 1, "end": 2}
+  ],
+  "captures": [
+    {"cue": "opening", "anchor": "start", "offset": 0.25},
+    {"cue": "approval", "anchor": "end", "offset": -0.1}
+  ]
+}
+```
+
+```sh
+pocket-studio evidence capture --project PATH --id render-ID --sha256 SHA256 --spec cues.json
+pocket-studio evidence inspect --project PATH --id evidence-ID
+```
+
+Cues are explicit named spans in seconds, ordered and non-overlapping. Gaps are
+allowed. Names are unique ASCII letters/digits/underscores/hyphens (1–80 characters).
+Capture times are relative to cue start or end, must lie inside the cue, and are
+never silently clamped. Limits: 1–1000 cues and 1–100 captures per request.
+The helper decodes from the beginning and selects the first video frame at or
+after each requested time. This prioritizes reproducible timing over fast seeks.
+It records both requested and decoded timestamps, relative to the first decoded
+video frame, and rejects a frame that would land outside the cue. Capture PNGs
+are scaled to at most 960 pixels wide. This is a frame helper, not a contact-sheet
+layout engine or a replacement for watching motion and hearing sound.
+
+Each request creates a fresh `evidence/evidence-ID` containing the request and
+frames. Hashes of those files, the target ID/hash and timestamps are stored in the
+manifest and attached via `evidence_refs` to the existing source/render/cut record.
+Original media is rehashed before attachment; existing evidence is never overwritten.
+Failed captures can leave unregistered files for diagnosis; no cleanup deletes
+originals. `evidence inspect` revalidates the target and evidence files. The ordinary
+CLI/MCP project inspection returns evidence metadata but does not rehash evidence
+files: use `evidence inspect` before relying on them. Manifest hashes provide change
+detection, not authentication against a caller who edits both files and manifest.
+Capture status is **not visually inspected**. An agent must actually view the frames
+and inspect other relevant modalities before reporting a creative hypothesis.
+
+## Transcript evidence and separate timing validation
+
+This helper accepts a transcript extracted from actual recorded audio by an
+available host transcription tool. It does not call any transcription provider.
+Keep the intended script separate from the raw tool result. The host supplies a
+normalized spec, asserting which tool produced the raw result and which exact
+media bytes were transcribed:
+
+```json
+{
+  "schema_version": 1,
+  "method": "audio_transcription",
+  "tool": "your-exposed-transcription-tool",
+  "media_sha256": "SHA256_OF_REGISTERED_AUDIO_OR_VIDEO",
+  "raw_sha256": "SHA256_OF_RAW_TRANSCRIPTION_FILE",
+  "text": "Click approve then type go go.",
+  "segments": [
+    {"start": 0, "end": 1, "text": "Click approve"},
+    {"start": 1, "end": 2, "text": "then type go go."}
+  ]
+}
+```
+
+```sh
+pocket-studio transcript compare --project PATH --id source-ID --sha256 SHA256 \
+  --script original-script.txt --raw raw-transcription.json --spec transcript.json
+pocket-studio evidence inspect --project PATH --id evidence-ID
+```
+
+Use a registered voice source or an exact rendered artifact containing audio.
+The first audio stream must have a positive finite duration in ffprobe metadata;
+containers without that information are currently rejected instead of guessing
+from a longer video track. Timing is relative to that audio stream's start. The
+helper retains exact script bytes, raw transcription bytes, normalized transcript,
+provenance and hash-bound results in a fresh evidence directory. It rejects stale
+media/raw hashes, a script reused as the raw input file (including hard links),
+unsupported fields and nonfinite timestamps. Provenance and normalization remain
+**caller asserted**, not independently authenticated; a valid receipt cannot prove
+that the host really transcribed audio or normalized its tool output faithfully.
+Never use an intended script as observed transcript evidence.
+
+Text comparison casefolds Unicode and compares alphanumeric words, ignoring
+punctuation. It returns explicit insert/delete/replace ranges and intended/observed
+words, with no quality score or acceptance threshold. `words_equal` says nothing
+about timing, intonation, emphasis, audibility or creative quality. Repeated words
+are not timing anchors; text diff alignment never infers cue times.
+
+Optional segments are checked independently for positive duration, audio bounds,
+ordering/overlap, and consistency of segment text with the full transcript. Missing
+segments report `not_provided`. Well-formed but out-of-bounds or overlapping timing
+is retained with `timing.status: invalid` and explicit issues, even when every word
+matches. A successful CLI command means evidence was recorded, not that timing or
+content passed. `valid` means only those structural checks passed; it is not forced
+alignment against the audio. Limits are 200,000 characters each for script and
+transcript, 5,000 words per input, and 10,000 segments. No creative approval or automatic revision occurs.
+
+Local retest additions: capture frames around a known cue, open the returned PNGs,
+check decoded timestamps against playback, and submit a real transcription-tool
+result for a disposable audio take. Verify a changed artifact or raw transcript
+hash is rejected and incorrect timing remains visible even with correct words.

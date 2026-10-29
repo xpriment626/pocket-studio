@@ -65,7 +65,7 @@ For speech, retain the original script and a transcript extracted from the actua
 recorded audio, including the raw transcription artifact and tool provenance.
 Never substitute the intended script as observed transcript evidence. Check timing
 bounds separately from word agreement; repeated words are ambiguous timing anchors.
-Transcript comparison and cue capture utilities are not implemented in this release.
+Use the evidence capture and transcript comparison helpers below for repeatable mechanics.
 
 ## Managed storage and connector destinations
 
@@ -91,3 +91,24 @@ responses, tokens, cookies, credentials, or signed URLs. The receipt is host-ass
 observation, not cryptographic proof. `destination status --project PATH` checks
 freshness. Binding is local metadata only: no upload transport or sync is implemented.
 Do not report a file uploaded because a destination was successfully pinned.
+
+## Repeatable production mechanics
+
+Use `evidence capture --project PATH --id ID --sha256 HASH --spec cues.json`
+for ordered named cues and start/end-relative frame capture. See README for the
+small spec. It records requested and decoded timestamps plus file hashes, and
+attaches evidence to the existing artifact ID. Open the captured images with an
+actual inspection tool before judging composition. Frame capture alone does not
+inspect motion or audio. Use `evidence inspect --project PATH --id evidence-ID`
+to revalidate evidence bytes before relying on them; project_inspect returns
+metadata only for these evidence files.
+
+After an available tool transcribes the actual audio, retain its raw output and
+create a normalized provenance spec without substituting intended words. Run
+`transcript compare --project PATH --id ID --sha256 HASH --script SCRIPT --raw RAW --spec SPEC`.
+The result separates word differences from segment timing issues. Read both:
+command success means evidence was retained, and correct words can coexist with
+invalid timing. The CLI does not transcribe, align words to audio, authenticate
+host provenance, or judge vocal delivery. Review the raw tool output if normalized
+text or repeated-word anchors are uncertain. Preserve the original script, exact
+media take, raw tool result and evidence ID together when proposing revisions.

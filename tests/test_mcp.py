@@ -61,6 +61,10 @@ class Protocol(unittest.TestCase):
                 status='ready', account_id='fixture-account', folder_id='fixture-folder', can_upload=True,
                 observed_at=(current - timedelta(minutes=1)).isoformat(),
                 expires_at=(current + timedelta(hours=1)).isoformat()))
+            from pocket_studio.evidence import capture
+            evidence = capture(root, item['id'], item['sha256'], {
+                'cues': [{'name': 'synthetic', 'start': 0, 'end': 2}],
+                'captures': [{'cue': 'synthetic', 'anchor': 'start', 'offset': .5}]})
             for ui in (False, True):
                 params = StdioServerParameters(
                     command=sys.executable,
@@ -93,6 +97,7 @@ class Protocol(unittest.TestCase):
                     cli = subprocess.run([sys.executable, '-m', 'pocket_studio.cli', 'inspect',
                         '--project', str(root)], cwd='/tmp', capture_output=True, text=True, check=True)
                     self.assertEqual(inspected.structuredContent, json.loads(cli.stdout)['data'])
+                    self.assertEqual(inspected.structuredContent['evidence'][0], evidence)
                     result = await session.call_tool(
                         "review_show", {"ids": [item["id"], "render-b"]}
                     )

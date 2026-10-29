@@ -229,9 +229,28 @@ def main():
     ds = p.add_subparsers(dest='action', required=True)
     p = ds.add_parser('bind'); p.add_argument('--project', required=True); p.add_argument('--receipt', required=True)
     p = ds.add_parser('status'); p.add_argument('--project', required=True)
+    p = sub.add_parser('evidence', help='Capture exact-version frames and validate retained evidence')
+    es = p.add_subparsers(dest='action', required=True)
+    p = es.add_parser('capture'); p.add_argument('--project', required=True)
+    p.add_argument('--id', required=True); p.add_argument('--sha256', required=True); p.add_argument('--spec', required=True)
+    p = es.add_parser('inspect'); p.add_argument('--project', required=True); p.add_argument('--id', required=True)
+    p = sub.add_parser('transcript', help='Compare actual-audio transcript evidence; no transcription service')
+    ts = p.add_subparsers(dest='action', required=True)
+    p = ts.add_parser('compare'); p.add_argument('--project', required=True)
+    for flag in ('id', 'sha256', 'script', 'raw', 'spec'):
+        p.add_argument('--' + flag, required=True)
     args = parser.parse_args()
     try:
-        if args.command == 'projects':
+        if args.command == 'evidence':
+            from pocket_studio.evidence import capture, inspect_evidence
+            root = root_at(args.project)
+            result = (inspect_evidence(root, args.id) if args.action == 'inspect' else
+                      capture(root, args.id, args.sha256, json.loads(Path(args.spec).read_text())))
+        elif args.command == 'transcript':
+            from pocket_studio.evidence import transcript_compare
+            result = transcript_compare(root_at(args.project), args.id, args.sha256,
+                args.script, args.raw, json.loads(Path(args.spec).read_text()))
+        elif args.command == 'projects':
             from pocket_studio.storage import home_at, register, projects
             home = home_at(args.home)
             result = (register(home, args.directory) if args.action == 'register' else
