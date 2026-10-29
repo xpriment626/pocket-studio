@@ -1,79 +1,20 @@
 import argparse
-import hashlib
 import html
 import json
 import math
-import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
-import uuid
-from datetime import datetime, timezone
 
 VERSION = '0.1.0'
 
 
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def digest(path):
-    h = hashlib.sha256()
-    with open(path, 'rb') as f:
-        for block in iter(lambda: f.read(1024 * 1024), b''):
-            h.update(block)
-    return h.hexdigest()
-
-
-def save(path, data):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as f:
-        json.dump(data, f, indent=2)
-        f.write('\n')
-    os.replace(f.name, path)
-
-
-def run(argv, cwd=None):
-    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
-    if result.returncode:
-        raise ValueError(f'{Path(argv[0]).name} failed: {result.stderr[-2000:]}')
-    return result.stdout
-
-
-def probe(path):
-    return json.loads(run(['ffprobe', '-v', 'error', '-show_format', '-show_streams', '-of', 'json', str(path)]))
-
-
-def media_duration(info):
-    value = float(info.get('format', {}).get('duration', 0))
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError('Media requires a positive finite duration')
-    return value
-
-
-def root_at(value):
-    root = Path(value).resolve()
-    if not (root / 'motion.json').is_file():
-        raise ValueError(f'No motion.json in {root}')
-    return root
-
-
-def read(root):
-    return json.loads((root / 'motion.json').read_text())
-
-
-def contained(root, relative):
-    path = (root / relative).resolve()
-    if not path.is_relative_to(root):
-        raise ValueError('Project paths must stay inside the project')
-    return path
-
-
-def new_id(prefix):
-    return prefix + '-' + uuid.uuid4().hex[:12]
+# Keep direct execution of this file compatible with the original CLI.
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pocket_studio.core import (now, digest, save, run, probe, media_duration,
+    root_at, read, contained, new_id, project_lock, submit_feedback, inspect_project, artifact)
 
 
 def init(args):
@@ -223,9 +164,8 @@ def review(args):
     directory.mkdir(exist_ok=True)
     cards = []
     for item in data['renders'] + data['cuts']:
+        artifact(root, data, item['id'])
         path = contained(root, item['path'])
-        if digest(path) != item['sha256']:
-            raise ValueError(f"Artifact changed since registration: {item['id']}")
         thumb = directory / (item['id'] + '.jpg')
         run(['ffmpeg', '-v', 'error', '-y', '-ss', str(min(item['duration'] / 2, 3)), '-i', str(path), '-frames:v', '1', '-vf', 'scale=640:-1', str(thumb)])
         url = '../' + item['path']
@@ -237,24 +177,16 @@ def review(args):
 
 
 def feedback(args):
-    root = root_at(args.project)
-    data = read(root)
-    entry = json.loads(Path(args.file).read_text())
-    item = next((x for x in data['renders'] + data['cuts'] if x['id'] == entry.get('id')), None)
-    if not item or entry.get('sha256') != item['sha256'] or digest(contained(root, item['path'])) != item['sha256']:
-        raise ValueError('Feedback artifact missing or changed; review the current version')
-    if entry.get('decision') not in ('approve', 'revise') or entry.get('author') != 'human':
-        raise ValueError('Feedback requires human attribution and approve/revise decision')
-    t = entry.get('time', 0)
-    if not isinstance(t, (float, int)) or not math.isfinite(t) or not 0 <= t <= item['duration']:
-        raise ValueError('Feedback timestamp is outside the artifact')
-    entry['recorded_at'] = now()
-    fid = new_id('feedback')
-    save(root / 'reviews' / (fid + '.json'), entry)
-    item['creative_status'] = 'approved' if entry['decision'] == 'approve' else 'revision_requested'
-    item['feedback'] = fid
-    save(root / 'motion.json', data)
-    return {'id': fid, 'artifact': item['id'], 'status': item['creative_status'], 'attribution': 'caller supplied; not identity verification'}
+    if args.file:
+        if any(getattr(args, k) is not None for k in ('id', 'sha256', 'decision', 'time', 'note', 'note_file', 'request_id')):
+            raise ValueError('--file cannot be combined with direct feedback fields')
+        entry = json.loads(Path(args.file).read_text())
+    else:
+        entry = dict(id=args.id, sha256=args.sha256, decision=args.decision,
+                     time=args.time if args.time is not None else 0, author='human',
+                     note=Path(args.note_file).read_text() if args.note_file else args.note or '',
+                     request_id=args.request_id)
+    return submit_feedback(root_at(args.project), entry)
 
 
 def main():
@@ -274,14 +206,20 @@ def main():
     for name, description in [('render', 'Execute an explicit renderer argv spec; preserve logs and immutable output'), ('assemble', 'Trim and join authored shots/recordings with optional music')]:
         p = sub.add_parser(name, help=description); p.add_argument('--project', required=True); p.add_argument('--spec', required=True)
     p = sub.add_parser('review', help='Build local playback and feedback page'); p.add_argument('--project', required=True)
-    p = sub.add_parser('feedback', help='Import human feedback bound to a specific artifact hash'); p.add_argument('--project', required=True); p.add_argument('--file', required=True)
+    p = sub.add_parser('feedback', help='Import human feedback bound to a specific artifact hash'); p.add_argument('--project', required=True); p.add_argument('--file')
+    p.add_argument('--id'); p.add_argument('--sha256'); p.add_argument('--decision', choices=['approve', 'revise'])
+    p.add_argument('--time', type=float); p.add_argument('--request-id')
+    notes = p.add_mutually_exclusive_group(); notes.add_argument('--note'); notes.add_argument('--note-file')
     args = parser.parse_args()
     try:
         if args.command == 'doctor':
             result = {'version': VERSION, 'mode': 'local', 'auth': 'not_required', 'model_calls': False,
                       'tools': {x: shutil.which(x) for x in ['ffmpeg', 'ffprobe', 'pdftotext', 'pdftoppm', 'blender', 'node']}}
         elif args.command == 'inspect':
-            result = read(root_at(args.project))
+            result = inspect_project(root_at(args.project))
+        elif args.command in ('source', 'render', 'assemble'):
+            with project_lock(root_at(args.project)):
+                result = {'source': add_source, 'render': render, 'assemble': assemble}[args.command](args)
         else:
             result = {'init': init, 'source': add_source, 'render': render, 'assemble': assemble, 'review': review, 'feedback': feedback}[args.command](args)
         print(json.dumps({'ok': True, 'data': result}, indent=2))
