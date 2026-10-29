@@ -39,7 +39,7 @@ def register(home, root):
     with project_lock(home), project_lock(root):
         index = registry(home)
         data = read(root)
-        pid = data.get('project_id') or new_id('project')
+        pid = data['project_id'] if 'project_id' in data else new_id('project')
         if not isinstance(pid, str) or not re.fullmatch(r'project-[a-f0-9]{12}', pid):
             raise ValueError('Invalid project ID')
         for item in index['projects']:

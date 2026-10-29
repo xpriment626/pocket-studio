@@ -63,6 +63,24 @@ class Storage(unittest.TestCase):
         self.assertFalse(self.call('projects', 'list')['data']['projects'][0]['available'])
         self.call('projects', 'open', '../../etc', success=False)
 
+    def test_present_invalid_project_ids_are_rejected_without_mutation(self):
+        root = self.base / 'legacy'
+        self.call('init', root, '--title', 'Legacy project')
+        data = json.loads((root / 'motion.json').read_text())
+        for invalid in (None, '', False, 0, [], {}):
+            with self.subTest(project_id=invalid):
+                data['project_id'] = invalid
+                (root / 'motion.json').write_text(json.dumps(data))
+                before = (root / 'motion.json').read_bytes()
+                self.call('projects', 'register', root, success=False)
+                self.assertEqual(before, (root / 'motion.json').read_bytes())
+                self.assertEqual(self.call('projects', 'list')['data']['projects'], [])
+        del data['project_id']
+        (root / 'motion.json').write_text(json.dumps(data))
+        registered = self.call('projects', 'register', root)['data']
+        self.assertEqual(json.loads((root / 'motion.json').read_text())['project_id'], registered['id'])
+        self.assertEqual(self.call('projects', 'open', registered['id'])['data']['path'], str(root))
+
     def test_home_override_and_symlink_boundaries(self):
         override = self.base / 'override'
         self.call('init', '--home', override, '--title', 'Other home')
