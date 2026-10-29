@@ -228,3 +228,111 @@ Set `POCKET_CHROMIUM` to an installed Chromium executable if needed. The browser
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Managed projects (additive foundation)
+
+```sh
+pocket-studio init --title 'Product film'
+pocket-studio projects list
+pocket-studio projects open project-ID
+pocket-studio init --home /path/to/studio --title 'Another film'
+pocket-studio projects --home /path/to/studio list
+pocket-studio projects register ./existing-film
+```
+
+The default home is `~/.pocket-studio`; `POCKET_STUDIO_HOME` overrides it and an
+explicit `--home` takes precedence. A managed init creates
+`projects/project-ID/motion.json`, BRIEF.md and TREATMENTS.md and records the stable
+project ID/path/title in `registry.json`. `open` verifies identity and returns the
+path; it does not change your shell directory or launch an application. Pass that
+path to existing commands' `--project` argument. Missing projects remain listed
+with `available: false`; no entry or file is automatically deleted.
+
+`init ./film --title 'Film'` still creates a portable standalone project, without
+writing the registry. Add `--home PATH` to register it in that home, or explicitly
+use `projects register`. Registering an old project adds a project ID but moves no
+files. Repeated registration is idempotent. Copies with the same ID at a different
+path are rejected rather than silently relocating the project. Home and project
+locks serialize cooperating local writers. Registry and project writes are atomic
+individually; interrupted registration can be retried. They are not a distributed
+transaction, and manual concurrent edits or network filesystems are unsupported.
+
+Existing `sources/source-ID` are retained originals/assets, and immutable
+`renders/render-ID` and `cuts/cut-ID` are takes/versions with hashes. There is no
+second revision scheme. Keep authored scene code, specifications and notes in the
+project. No disposable cache manager, automatic migration, synchronization, or
+cleanup is introduced. Preserve the entire directory for handoff.
+
+## Host-observed destination binding (no upload transport)
+
+The CLI cannot see Codex session tools. The host agent discovers exposed connectors,
+checks authentication, resolves a specific account/folder, and checks upload
+permission. It supplies a **non-secret assertion** of those observations. The CLI
+validates and pins it locally; it does not independently authenticate the assertion.
+Google Drive and Dropbox provider labels currently share this same fixture-tested
+contract. Neither has a working upload integration here.
+
+Example receipt schema (replace IDs and timestamps with actual host observations;
+this dated illustration will expire):
+
+```json
+{
+  "schema_version": 1,
+  "provider": "google_drive",
+  "host": "codex",
+  "status": "ready",
+  "account_id": "account-ID",
+  "folder_id": "folder-ID",
+  "can_upload": true,
+  "observed_at": "2026-10-29T10:00:00Z",
+  "expires_at": "2026-10-29T11:00:00Z"
+}
+```
+
+```sh
+pocket-studio destination bind --project /path/to/film --receipt ./observation.json
+pocket-studio destination status --project /path/to/film
+```
+
+A ready observation must be current, timezone-aware, and expire within 24 hours
+of observation. `account_id`, `folder_id`, and `host` accept 1–200 ASCII letters,
+digits and `_.:@-`; other ID formats are currently unsupported. `can_upload` must
+be boolean true, based on explicit host capability/permission checks. A readable
+folder alone is insufficient. Repeating an identical observation returns the same
+binding; a new observation replaces the current binding. Failed binds leave the
+previous binding intact. Status reports expiry without deleting the binding.
+Binding never transfers files; local originals remain the working copy.
+
+A host can instead submit `{ "schema_version": 1, "provider": "google_drive",
+"status": "auth_required" }` to receive a stable error code and relay the setup
+requirement. Supported failure statuses are `missing_connector`, `auth_required`,
+`account_selection`, `permission_denied`, `network_error`, `stale_observation`,
+`unsupported_host`, and `uncertain_transfer`. The last is reserved for future
+transport reconciliation; no transfers occur today. Invalid schema and providers
+return `invalid_observation` and `unsupported_provider`. No rejected receipt values
+or unknown field names are echoed. Unknown fields are rejected. Only supply
+non-secret identifiers: validation cannot detect a secret deliberately placed in
+an allowed identifier field. Raw tool responses, signed URLs, keys and tokens must
+never enter this interface. Future direct-provider BYOK support must use credential
+references rather than stored secret values; no credential input is accepted now.
+
+The existing project-scoped MCP `project_inspect` returns the same persisted project
+ID and destination metadata. Registration and binding are CLI operations; no new
+MCP account discovery or transport tools are claimed.
+
+## Deferred buildout and local retest
+
+This slice builds on the unmerged headless-review branch. It does not implement
+cue-relative capture/contact sheets, transcript ingestion/comparison, timing helpers,
+render dependency snapshots, a current-take pointer, targeted rebuilds, remote
+transfers or provider clients. Existing source references and immutable artifact
+hashes remain available; they are not an incremental-render cache.
+
+When back at the laptop: install the reviewed wheel/skill in a test environment,
+create a temporary managed project, register an existing disposable project, and
+verify list/open, render, inspect and actual owner feedback. Configure the optional
+MCP adapter against that returned project path, verify CLI/MCP manifest parity and
+review fallback, then test actual Codex tool discovery and native imagegen only if
+exposed. Test inline playback, sound, seeking and failure feedback in the real host
+before relying on it. Real connector authentication, folder permissions and upload
+transport E2E tests remain separate; fixture success does not establish them.

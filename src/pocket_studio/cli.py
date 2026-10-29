@@ -18,16 +18,25 @@ from pocket_studio.core import (now, digest, save, run, probe, media_duration,
 
 
 def init(args):
-    root = Path(args.directory).resolve()
+    from pocket_studio.storage import home_at, register
+    home = home_at(args.home) if args.directory is None or args.home else None
+    pid = new_id('project')
+    root = Path(args.directory).resolve() if args.directory else contained(home, 'projects/' + pid)
+    if root == home:
+        raise ValueError('Project directory must differ from managed home')
     root.mkdir(parents=True, exist_ok=True)
+    for filename in ('motion.json', 'BRIEF.md', 'TREATMENTS.md', '.gitignore'):
+        if (root / filename).is_symlink():
+            raise ValueError('Project initialization refuses symlinked files')
     if (root / 'motion.json').exists():
         raise ValueError('Project already exists; refusing to overwrite')
-    save(root / 'motion.json', {'schema_version': 1, 'title': args.title, 'created_at': now(),
+    save(root / 'motion.json', {'schema_version': 1, 'project_id': pid, 'title': args.title, 'created_at': now(),
          'format': {'width': 1920, 'height': 1080, 'fps': 30}, 'sources': [], 'renders': [], 'cuts': []})
     (root / 'BRIEF.md').write_text('# ' + args.title + '\n\n## Audience and intended effect\n\n## Product facts and source references\n\n## Creative freedom\n\n## Visual and sonic direction\n\n## Human acceptance criteria\n\nSuccess requires human review of motion and sound. Source slides are reference material, not the film timeline.\n')
     (root / 'TREATMENTS.md').write_text('# Treatments\n\nDevelop distinct visual ideas as style frames and short motion studies. Record the concept, source facts, camera, materials, sound and intended viewer understanding.\n')
     (root / '.gitignore').write_text('sources/\nrenders/\ncuts/\nreviews/\n.env\n')
-    return {'project': str(root), 'manifest': str(root / 'motion.json')}
+    registration = register(home, root) if home else None
+    return {'project': str(root), 'manifest': str(root / 'motion.json'), 'registration': registration}
 
 
 def add_source(args):
@@ -196,7 +205,7 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('doctor', help='Report local tools and offline authentication mode')
     p = sub.add_parser('init', help='Create a portable film project')
-    p.add_argument('directory'); p.add_argument('--title', required=True)
+    p.add_argument('directory', nargs='?'); p.add_argument('--title', required=True); p.add_argument('--home')
     p = sub.add_parser('source', help='Copy and inspect reference material without executing it')
     ss = p.add_subparsers(dest='action', required=True)
     p = ss.add_parser('add'); p.add_argument('file'); p.add_argument('--project', required=True)
@@ -210,10 +219,36 @@ def main():
     p.add_argument('--id'); p.add_argument('--sha256'); p.add_argument('--decision', choices=['approve', 'revise'])
     p.add_argument('--time', type=float); p.add_argument('--request-id')
     notes = p.add_mutually_exclusive_group(); notes.add_argument('--note'); notes.add_argument('--note-file')
+    p = sub.add_parser('projects', help='List, register or locate projects without moving files')
+    p.add_argument('--home')
+    ps = p.add_subparsers(dest='action', required=True)
+    ps.add_parser('list')
+    p = ps.add_parser('register'); p.add_argument('directory')
+    p = ps.add_parser('open'); p.add_argument('id')
+    p = sub.add_parser('destination', help='Pin host-observed remote destination; no upload or sync')
+    ds = p.add_subparsers(dest='action', required=True)
+    p = ds.add_parser('bind'); p.add_argument('--project', required=True); p.add_argument('--receipt', required=True)
+    p = ds.add_parser('status'); p.add_argument('--project', required=True)
     args = parser.parse_args()
     try:
-        if args.command == 'doctor':
-            result = {'version': VERSION, 'mode': 'local', 'auth': 'not_required', 'model_calls': False,
+        if args.command == 'projects':
+            from pocket_studio.storage import home_at, register, projects
+            home = home_at(args.home)
+            result = (register(home, args.directory) if args.action == 'register' else
+                      projects(home, args.id if args.action == 'open' else None))
+        elif args.command == 'destination':
+            from pocket_studio.storage import bind_destination, destination_status
+            root = root_at(args.project)
+            if args.action == 'bind':
+                try:
+                    receipt = json.loads(Path(args.receipt).read_text())
+                except (ValueError, OSError):
+                    raise ValueError('Cannot read destination observation JSON') from None
+                result = bind_destination(root, receipt)
+            else:
+                result = destination_status(root)
+        elif args.command == 'doctor':
+            result = {'version': VERSION, 'mode': 'local', 'auth': 'not_required', 'model_calls': False, 'connector_discovery': 'host_required', 'destination_transport': 'not_implemented',
                       'tools': {x: shutil.which(x) for x in ['ffmpeg', 'ffprobe', 'pdftotext', 'pdftoppm', 'blender', 'node']}}
         elif args.command == 'inspect':
             result = inspect_project(root_at(args.project))
@@ -224,7 +259,7 @@ def main():
             result = {'init': init, 'source': add_source, 'render': render, 'assemble': assemble, 'review': review, 'feedback': feedback}[args.command](args)
         print(json.dumps({'ok': True, 'data': result}, indent=2))
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(json.dumps({'ok': False, 'error': {'type': type(exc).__name__, 'message': str(exc)}}))
+        print(json.dumps({'ok': False, 'error': {'type': type(exc).__name__, 'code': getattr(exc, 'code', 'operation_failed'), 'message': str(exc)}}))
         sys.exit(1)
 
 

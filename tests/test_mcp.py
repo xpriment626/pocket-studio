@@ -1,5 +1,8 @@
 import asyncio
 import importlib.util
+import json
+import subprocess
+from datetime import datetime, timedelta, timezone
 import sys
 import unittest
 
@@ -51,6 +54,13 @@ class Protocol(unittest.TestCase):
 
         tmp, root, item = fixture()
         with tmp:
+            from pocket_studio.storage import bind_destination, home_at, register
+            register(home_at(root / 'registry-home'), root)
+            current = datetime.now(timezone.utc)
+            bind_destination(root, dict(schema_version=1, provider='google_drive', host='fixture',
+                status='ready', account_id='fixture-account', folder_id='fixture-folder', can_upload=True,
+                observed_at=(current - timedelta(minutes=1)).isoformat(),
+                expires_at=(current + timedelta(hours=1)).isoformat()))
             for ui in (False, True):
                 params = StdioServerParameters(
                     command=sys.executable,
@@ -80,6 +90,9 @@ class Protocol(unittest.TestCase):
                     self.assertEqual(
                         inspected.structuredContent["title"], "Synthetic test"
                     )
+                    cli = subprocess.run([sys.executable, '-m', 'pocket_studio.cli', 'inspect',
+                        '--project', str(root)], cwd='/tmp', capture_output=True, text=True, check=True)
+                    self.assertEqual(inspected.structuredContent, json.loads(cli.stdout)['data'])
                     result = await session.call_tool(
                         "review_show", {"ids": [item["id"], "render-b"]}
                     )

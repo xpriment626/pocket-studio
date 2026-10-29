@@ -40,3 +40,54 @@ pocket-studio feedback --project ./film --id render-ID --sha256 SHA256 --decisio
 Prefer direct feedback from the conversation, using the exact artifact ID/hash returned by inspect and a stable request ID for retries. Use --note-file for longer notes; --file still imports older feedback JSON. Open the returned local review HTML or media file for playback with sound and comparison. If the optional local MCP adapter is configured, use project_inspect, review_show and feedback_submit. Show inline review only when the host advertises MCP Apps and can reach the local media endpoint; otherwise use the file/player fallback. Never claim that terminal MCP support guarantees inline playback. Submit only feedback actually supplied by the user; never author an approval on their behalf. Human attribution in the JSON is caller supplied, not authenticated identity. Technical checks and agent critique cannot establish creative acceptance. Feedback is bound to a media hash; revised media requires new review.
 
 Keep the project manifest, source references, authored code, render specs and feedback together for handoff between agents. No automatic publishing or cloud upload occurs. Read the installed CLI README for limitations and installation.
+
+## Codex-native production and inspection
+
+Codex is the driver and director. Discover the actual tools exposed in the current
+session before choosing a production approach. `doctor` reports local executables;
+it cannot discover the host's connectors, model tools or authenticated accounts.
+Use Codex's native image generation tool directly when it is exposed and appropriate.
+Do not wrap another agent around `codex exec` to manufacture that capability.
+If native generation is unavailable, say so and choose available tools. SVG,
+React UI state components, and reusable 3D objects/formations are useful distinct
+renderers; preserve their authored structure instead of forcing a universal scene DSL.
+External providers and optional BYOK are separate future integrations. Existing
+connectors take priority; no provider keys are required to begin a project.
+
+Inspect reference sources before writing factual claims. Keep fact checks separate
+from subjective creative judgment. Use actual audiovisual inspection tools on the
+exact render, then describe a quality hypothesis and ask for owner feedback when
+needed. Record the artifact ID/hash, inspection tool, inspected modality, observations,
+and uncertainties in project notes. Do not claim an uninspected modality is finished.
+Do not add arbitrary quality scores, mandatory critic agents or automatic polishing gates.
+A decodable audio file or valid JSON does not establish correct spoken words.
+For speech, retain the original script and a transcript extracted from the actual
+recorded audio, including the raw transcription artifact and tool provenance.
+Never substitute the intended script as observed transcript evidence. Check timing
+bounds separately from word agreement; repeated words are ambiguous timing anchors.
+Transcript comparison and cue capture utilities are not implemented in this release.
+
+## Managed storage and connector destinations
+
+`pocket-studio init --title 'Product film'` creates a registered project in
+`~/.pocket-studio/projects/project-ID`. Use `--home PATH` on init, or
+`POCKET_STUDIO_HOME`, to override the home. Explicit `init ./film --title ...`
+continues to work. `projects register ./film` registers an existing project without
+moving files. `projects list` discovers entries; `projects open project-ID` returns
+the verified path for subsequent `--project PATH` commands (it does not launch a UI).
+Use `projects --home PATH list` for an explicit registry override.
+Sources retain their source IDs; renders and cuts retain their version IDs and
+hashes. Do not introduce a second take numbering system or put originals in cache.
+Keep project directories together; no automatic migration or cleanup is performed.
+
+When the owner requests Google Drive or Dropbox, discover the exposed connector
+in the host, check authentication, select the actual account and folder, and check
+upload capability explicitly. Installed does not mean authenticated; readable does
+not mean writable. If discovery or permission checks are unavailable, report that
+limitation rather than inventing a ready receipt. Pass only the documented
+non-secret observation fields to `destination bind --project PATH --receipt FILE`.
+See README for the receipt schema and setup error codes. Do not pass raw tool
+responses, tokens, cookies, credentials, or signed URLs. The receipt is host-asserted
+observation, not cryptographic proof. `destination status --project PATH` checks
+freshness. Binding is local metadata only: no upload transport or sync is implemented.
+Do not report a file uploaded because a destination was successfully pinned.
