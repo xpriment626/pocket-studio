@@ -118,6 +118,10 @@ class Browser(unittest.TestCase):
                         page.on(
                             "pageerror", lambda error: print("BROWSER ERROR:", error)
                         )
+                        supported = await page.evaluate(
+                            "() => document.createElement('video').canPlayType('video/mp4; codecs=\"avc1.64001f, mp4a.40.2\"')"
+                        )
+                        self.assertTrue(supported, "Browser must support fixture H.264/AAC; set POCKET_CHROMIUM to full Chrome")
                         await page.expose_function("callTool", call)
                         await page.goto(f"http://127.0.0.1:{host.server_port}")
                         await page.add_script_tag(content=harness.read_text())
