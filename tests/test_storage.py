@@ -32,7 +32,7 @@ class Storage(unittest.TestCase):
     def receipt(self, **changes):
         current = datetime.now(timezone.utc)
         data = dict(schema_version=1, provider='google_drive', status='ready',
-                    account_id='account-1', folder_id='folder-1', host='codex', can_upload=True,
+                    account_id='account-1', folder_id='folder-1', host='claude-code', can_upload=True,
                     observed_at=(current - timedelta(minutes=1)).isoformat(),
                     expires_at=(current + timedelta(hours=1)).isoformat())
         data.update(changes)
