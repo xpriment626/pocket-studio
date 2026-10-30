@@ -1,4 +1,4 @@
-"""Actual Chromium media and bridge checks; NOT Claude/Codex host certification."""
+"""Actual Chromium media and bridge checks; NOT Claude Code host certification."""
 
 import asyncio
 import importlib.util

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pocket-studio"
 version = "0.1.0"
-description = "Local production primitives for agent-authored motion films"
+description = "Local production primitives for Claude Code motion films"
 requires-python = ">=3.10"
 dependencies = []
 readme = "README.md"

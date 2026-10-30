@@ -199,11 +199,11 @@ def feedback(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog='pocket-studio', description='Local production primitives. No model login or subscription pairing.')
+    parser = argparse.ArgumentParser(prog='pocket-studio', description='Production primitives for Claude Code. No additional model login or provider keys required.')
     parser.add_argument('--json', action='store_true', help='Stable JSON output (place before command)')
     parser.add_argument('--version', action='version', version=VERSION)
     sub = parser.add_subparsers(dest='command', required=True)
-    sub.add_parser('doctor', help='Report local tools and offline authentication mode')
+    sub.add_parser('doctor', help='Report local tools and supported driver; session connectors require host discovery')
     p = sub.add_parser('init', help='Create a portable film project')
     p.add_argument('directory', nargs='?'); p.add_argument('--title', required=True); p.add_argument('--home')
     p = sub.add_parser('source', help='Copy and inspect reference material without executing it')
@@ -267,7 +267,7 @@ def main():
             else:
                 result = destination_status(root)
         elif args.command == 'doctor':
-            result = {'version': VERSION, 'mode': 'local', 'auth': 'not_required', 'model_calls': False, 'connector_discovery': 'host_required', 'destination_transport': 'not_implemented',
+            result = {'version': VERSION, 'mode': 'local', 'supported_driver': 'claude-code', 'auth': 'not_required', 'model_calls': False, 'connector_discovery': 'host_required', 'destination_transport': 'not_implemented',
                       'tools': {x: shutil.which(x) for x in ['ffmpeg', 'ffprobe', 'pdftotext', 'pdftoppm', 'blender', 'node']}}
         elif args.command == 'inspect':
             result = inspect_project(root_at(args.project))

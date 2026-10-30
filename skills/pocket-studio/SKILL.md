@@ -1,9 +1,9 @@
 ---
 name: pocket-studio
-description: Produce and revise motion graphic product films from decks, result visualisations, screenshots and recordings using a local CLI and human visual review.
+description: Use Claude Code to produce and revise motion graphic product films from decks, result visualisations, screenshots and recordings using a local CLI and human visual review.
 ---
 
-Use `pocket-studio --json doctor` first; `pocket-studio --help` lists the command surface. No model account pairing is needed: the current Claude Code or Codex session supplies direction and authors the scenes. Provider-generated assets may use separately configured API keys; the CLI does not generate those assets itself.
+Use `pocket-studio --json doctor` first; `pocket-studio --help` lists the command surface. Claude Code is the only supported driver: the current session supplies direction, discovers tools and authors scenes. No additional model pairing or provider keys are required. The CLI manages production artifacts; it does not generate assets or discover session connectors.
 
 Start a project, import reference material, and inspect the manifest:
 
@@ -50,18 +50,40 @@ Prefer direct feedback from the conversation, using the exact artifact ID/hash r
 
 Keep the project manifest, source references, authored code, render specs and feedback together for handoff between agents. No automatic publishing or cloud upload occurs. Read the installed CLI README for limitations and installation.
 
-## Codex-native production and inspection
+## Claude Code production and inspection
 
-Codex is the driver and director. Discover the actual tools exposed in the current
-session before choosing a production approach. `doctor` reports local executables;
-it cannot discover the host's connectors, model tools or authenticated accounts.
-Use Codex's native image generation tool directly when it is exposed and appropriate.
-Do not wrap another agent around `codex exec` to manufacture that capability.
-If native generation is unavailable, say so and choose available tools. SVG,
-React UI state components, and reusable 3D objects/formations are useful distinct
-renderers; preserve their authored structure instead of forcing a universal scene DSL.
-External providers and optional BYOK are separate future integrations. Existing
-connectors take priority; no provider keys are required to begin a project.
+Claude Code is the driver and director. Use its actually exposed tools and
+connectors directly; do not delegate production to a different model CLI or add
+an outer orchestration engine. Start with the brief and available inputs, discover
+tools in this session, and run `doctor` for local executables. `doctor` cannot see
+session tools, connector authentication or accounts. Record only observed capabilities
+and limitations, never credentials, in the project's environment notes.
+
+Do not assume image generation, speech synthesis, transcription, browser capture,
+or audiovisual inspection is available. A skill mentioning a tool is not evidence
+that the tool exists. If image generation is exposed and useful, use it directly
+within the user's authorization and register the returned asset. If it is absent,
+continue with authored SVG, Canvas, React, 3D scenes, typography, source assets and
+available renderers. Missing image generation or a provider account must not make
+onboarding fail. Never invent generated images, audio, tool results or inspections.
+
+Choose the simplest code-based production route that serves the film. Write small
+disposable scene/capture scripts where useful and retain reusable objects, formations
+and UI state components where they earn their keep. Keep distinct renderers rather
+than forcing a universal scene DSL. Install appropriate dependencies when permitted
+by the user's task and environment policy, using project-scoped environments and
+locked dependencies; retain setup commands and versions. If installation is blocked,
+report the specific missing dependency and continue independent work with available
+tools. Do not build a framework merely to produce one shot.
+
+Prefer existing authenticated connectors. If the owner adds their ElevenLabs
+connector to Claude Code, discover its exposed actions and check account readiness
+there; do not assume it is already connected or supports every audio operation.
+Use available actions directly for authorized work and import resulting files as
+sources. Do not copy credentials between hosts, configure the account on the owner's
+behalf, or request API keys just to onboard. A missing connector should only block
+the operation requiring it; code-based motion can proceed. Direct-provider BYOK
+clients remain a separate future integration, not an onboarding requirement.
 
 Inspect reference sources before writing factual claims. Keep fact checks separate
 from subjective creative judgment. Use actual audiovisual inspection tools on the

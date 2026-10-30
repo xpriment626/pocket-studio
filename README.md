@@ -1,8 +1,8 @@
 # Pocket Studio
 
-Local production tools for coding agents making motion graphics and product videos.
+Local production tools for Claude Code making motion graphics and product videos.
 
-Use Claude Code or Codex to direct and author a film from decks, visualisations, screenshots and screen recordings. Pocket Studio keeps the sources, render versions, edits and human feedback together. It works with your existing agent session: no additional model login, subscription pairing or hosted service is required.
+Use Claude Code, the only supported driver, to direct and author a film from decks, visualisations, screenshots and screen recordings. Pocket Studio keeps the sources, render versions, edits and human feedback together. It works with your existing agent session: no additional model login, subscription pairing or hosted service is required.
 
 Pocket Studio is an early CLI, not an automatic video generator. You choose the creative direction and rendering tools. It provides the production steps around them:
 
@@ -10,7 +10,7 @@ Pocket Studio is an early CLI, not an automatic video generator. You choose the 
 - Run an explicit renderer command and retain its output and logs.
 - Trim and join authored shots and recordings, preserving audio and optionally mixing music.
 - Compare versions in a local playback page and record timestamped human feedback.
-- Carry the same project between Claude Code and Codex through a companion skill.
+- Retain a portable project across Claude Code sessions through a companion skill.
 
 ## Requirements
 
@@ -26,19 +26,47 @@ The CLI itself uses only the Python standard library. On macOS, FFmpeg and Poppl
 ```sh
 git clone https://github.com/xpriment626/pocket-studio.git
 cd pocket-studio
-python3 install.py --skills both
+python3 install.py
 ```
 
-This installs an editable `pocket-studio` launcher in `~/.local/bin` and a companion skill in both `~/.claude/skills/pocket-studio` and `~/.codex/skills/pocket-studio`. Keep the checkout in place. If needed, add `~/.local/bin` to your shell's PATH. Start a new agent session to discover the skill.
+This installs an editable `pocket-studio` launcher in `~/.local/bin` and the companion skill in `~/.claude/skills/pocket-studio`. Keep the checkout in place. If needed, add `~/.local/bin` to your shell's PATH. Start a new agent session to discover the skill.
 
-Use `--skills claude`, `--skills codex`, or `--skills none` to select the installation target. The installer refuses to overwrite an unrelated command or a differing existing skill.
+The default is `--skills claude`; use `--skills none` for CLI-only installation. Other driver targets are not supported. Existing installations for other hosts are left untouched; no migration or deletion runs automatically. The installer refuses to overwrite an unrelated command or a differing existing skill.
 
-Alternatively, install the CLI with `pip install .` in your Python environment and copy `skills/pocket-studio` to your host's skills directory.
+Alternatively, install the CLI with `pip install .` in your Python environment and copy `skills/pocket-studio` to `~/.claude/skills/pocket-studio`.
 
 ```sh
 pocket-studio --json doctor
 pocket-studio --help
 ```
+
+## Claude Code drives production
+
+Use the tools actually available in the Claude Code session, directly. The skill
+helps Claude ground the story, choose tools, author motion and inspect output; the
+CLI supplies storage, rendering, capture, transcript comparison and version-bound
+feedback. There is no additional director service or model-CLI wrapper.
+
+Start with code-based motion and available source assets. Claude can create SVG,
+Canvas, React or 3D scenes, write disposable scripts and retain reusable components
+as appropriate. It can install renderer dependencies where authorized, keeping
+project environments, lockfiles and reproducible setup commands. The included
+`examples/responsibility_study.py` is a code-authored renderer example; it requires
+its documented Pillow/FFmpeg dependencies, not an image generation account.
+
+Discover session capabilities instead of assuming image generation or audio tools.
+If no image generator exists, continue with code and existing assets. If a requested
+audio operation needs an unavailable connector, report that specific setup need
+and continue independent visual work. Never substitute intended script text for
+a transcript extracted from real audio or claim an unperformed inspection.
+
+Existing connectors come first. The owner may add an existing ElevenLabs account
+connector to Claude Code; discover its actual tools and authentication state there.
+Pocket Studio neither connects that account nor copies credentials. No BYOK or
+paid generation is required to onboard, and no provider clients are included.
+`doctor` reports executables and the supported driver, not connector availability.
+Google Drive/Dropbox destination overrides retain their explicit setup errors and
+local-only binding contract below.
 
 ## Start a project
 
@@ -156,10 +184,9 @@ Use absolute paths to the virtual environment executable and project below. The 
 
 ```sh
 claude mcp add --transport stdio pocket-studio -- /absolute/path/.venv/bin/pocket-studio-mcp --project /absolute/path/film
-codex mcp add pocket-studio -- /absolute/path/.venv/bin/pocket-studio-mcp --project /absolute/path/film
 ```
 
-These local stdio commands follow the official [Claude Code MCP setup](https://code.claude.com/docs/en/mcp) and [Codex MCP setup](https://developers.openai.com/codex/mcp). No additional model login or account pairing is needed. Each process is bound to one configured project; tools cannot choose another root or execute commands.
+This local stdio command configures the optional adapter for Claude Code. No additional model login or account pairing is needed. Each process is bound to one configured project; tools cannot choose another root or execute commands.
 
 Tools:
 
@@ -177,11 +204,11 @@ The player has native video/audio controls, seeking and a time display, A/B sele
 
 Media uses a session-only `127.0.0.1` server with a random port and opaque URLs for selected registered artifacts. It validates current hashes, supports single byte ranges/HEAD, rejects unregistered paths and traversal, and closes on stdio shutdown or termination. URLs are local bearer capabilities: do not share them. No directory listing, upload, remote storage or public binding is provided. Movies are never embedded in model-visible tool JSON. CSP metadata declares only this loopback media origin.
 
-**Host verification remains required.** Protocol and Chromium tests do not establish Claude Code, Codex, Claude Desktop or ChatGPT embedded-player compatibility. Terminal MCP support alone does not imply inline UI support. A cloud/remote host's iframe may not reach your machine's loopback endpoint; a host can also reject the media origin through CSP, mixed-content or local-network rules. Use the file/player and direct-feedback fallback if the view or media is unavailable. Do not expose the loopback server publicly to work around this.
+**Host verification remains required.** Protocol and Chromium tests do not establish Claude Code embedded-player compatibility. Claude Code is the supported driver; use the local player and direct feedback as the baseline review flow. Terminal MCP support alone does not imply inline UI support. A cloud/remote host's iframe may not reach your machine's loopback endpoint; a host can also reject the media origin through CSP, mixed-content or local-network rules. Use the file/player and direct-feedback fallback if the view or media is unavailable. Do not expose the loopback server publicly to work around this.
 
 Before relying on inline review in a particular local host, check that it advertises the extension, renders the view, plays video and audible sound, seeks, changes A/B versions, captures the correct timestamp, persists a decision, and displays an error after bytes change. Human evaluation of creative quality remains separate.
 
-Standards and packaging references: [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview), [OpenAI UI integration](https://developers.openai.com/plugins/build/chatgpt-ui), and [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins). This slice ships local stdio configuration and a shared skill, not host-specific plugin manifests or a remote service.
+The optional inline resource retains the MCP Apps protocol implementation. This package ships a Claude Code skill and optional local stdio adapter, not a plugin marketplace manifest or remote service. Inline support is experimental and must be detected; the CLI, files and direct feedback do not depend on it.
 
 ## Project format and CLI output
 
@@ -265,7 +292,7 @@ cleanup is introduced. Preserve the entire directory for handoff.
 
 ## Host-observed destination binding (no upload transport)
 
-The CLI cannot see Codex session tools. The host agent discovers exposed connectors,
+The CLI cannot see Claude Code session tools. The host agent discovers exposed connectors,
 checks authentication, resolves a specific account/folder, and checks upload
 permission. It supplies a **non-secret assertion** of those observations. The CLI
 validates and pins it locally; it does not independently authenticate the assertion.
@@ -279,7 +306,7 @@ this dated illustration will expire):
 {
   "schema_version": 1,
   "provider": "google_drive",
-  "host": "codex",
+  "host": "claude-code",
   "status": "ready",
   "account_id": "account-ID",
   "folder_id": "folder-ID",
@@ -322,7 +349,7 @@ MCP account discovery or transport tools are claimed.
 
 ## Deferred buildout and local retest
 
-This work builds on the unmerged headless-review branch. It does not implement
+The production infrastructure includes the merged headless-review, managed-storage and evidence helpers. It does not implement
 contact sheets, automatic transcription/forced alignment,
 render dependency snapshots, a current-take pointer, targeted rebuilds, remote
 transfers or provider clients. Existing source references and immutable artifact
@@ -332,8 +359,9 @@ When back at the laptop: install the reviewed wheel/skill in a test environment,
 create a temporary managed project, register an existing disposable project, and
 verify list/open, render, inspect and actual owner feedback. Configure the optional
 MCP adapter against that returned project path, verify CLI/MCP manifest parity and
-review fallback, then test actual Codex tool discovery and native imagegen only if
-exposed. Test inline playback, sound, seeking and failure feedback in the real host
+review fallback, then test actual Claude Code tool discovery. Exercise optional
+image or audio connectors only if exposed and authorized; verify the code-only path
+works without them. Test inline playback, sound, seeking and failure feedback in the real host
 before relying on it. Real connector authentication, folder permissions and upload
 transport E2E tests remain separate; fixture success does not establish them.
 
