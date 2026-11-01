@@ -23,6 +23,11 @@ jobs:
           test -x "$POCKET_CHROMIUM"
           "$POCKET_CHROMIUM" --version
           python -m unittest discover -s tests -v
+      - name: Source-component rehearsal and QA smoke
+        run: |
+          npm --prefix src/pocket_studio/rehearsal ci --ignore-scripts
+          export CHROME_PATH="$(command -v google-chrome)"
+          node tests/rehearsal.test.mjs
       - run: python -m build
       - name: Install CLI-only wheel outside checkout
         run: |
@@ -32,3 +37,6 @@ jobs:
           /tmp/pocket-wheel/bin/pocket-studio --json doctor
           /tmp/pocket-wheel/bin/pocket-studio init /tmp/wheel-film --title 'Wheel test'
           /tmp/pocket-wheel/bin/pocket-studio inspect --project /tmp/wheel-film
+          /tmp/pocket-wheel/bin/pocket-studio rehearsal setup --project /tmp/wheel-film
+          test -f /tmp/wheel-film/production/rehearsal/scripts/film.mjs
+          test -f /tmp/wheel-film/production/rehearsal/STAGESHOW-LICENSE

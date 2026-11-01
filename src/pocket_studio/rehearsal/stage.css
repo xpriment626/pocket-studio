@@ -1,0 +1,7 @@
+/* Apply to an editorial wrapper around actual product components. */
+.ps-stage { position: relative; overflow: hidden; isolation: isolate; }
+.ps-camera { transform-origin: 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .ps-stage { scroll-behavior: auto; }
+  .ps-camera { animation: none; transition: none; }
+}

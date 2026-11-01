@@ -101,7 +101,7 @@ Use the evidence capture and transcript comparison helpers below for repeatable 
 ## Managed storage and connector destinations
 
 `pocket-studio init --title 'Product film'` creates a registered project in
-`~/.pocket-studio/projects/project-ID`. Use `--home PATH` on init, or
+`~/.pocket-studio/projects/<semantic-title>`. Use `--home PATH` on init, or
 `POCKET_STUDIO_HOME`, to override the home. Explicit `init ./film --title ...`
 continues to work. `projects register ./film` registers an existing project without
 moving files. `projects list` discovers entries; `projects open project-ID` returns
@@ -143,3 +143,44 @@ invalid timing. The CLI does not transcribe, align words to audio, authenticate
 host provenance, or judge vocal delivery. Review the raw tool output if normalized
 text or repeated-word anchors are uncertain. Preserve the original script, exact
 media take, raw tool result and evidence ID together when proposing revisions.
+
+## Intent-based project organization
+
+At the start of each new project, infer a concise descriptive title (about 3–7 words)
+from the user's purpose, like a chat title. Do this without an extra naming question.
+Use `init --title 'Atlas contact sharing' --intent 'Demonstrate adding and sharing a contact' --tag atlas --tag product-demo`.
+Managed folders now use `~/.pocket-studio/projects/atlas-contact-sharing`; collisions
+receive `-2`, `-3`, etc. Never use a hash as the human-facing project title.
+`projects list` returns title, slug and tags; `projects open atlas-contact-sharing`
+and opening by the stable internal project ID both work. Use `projects label ID
+--title 'Refined intent' --tag atlas` to refine metadata; omitting tags preserves them.
+Labels do not relocate the directory or change its stable slug, IDs or artifact paths.
+Existing hash folders stay in place and acquire readable selectors on listing or
+registration. Do not move existing projects or rewrite source/artifact references
+as an implicit migration. The host Claude session supplies semantic judgment;
+the CLI only normalizes the supplied title and tags, without another model call.
+
+## Optional choreography and rehearsal
+
+Run `rehearsal setup --project PATH` to copy the optional toolkit into
+`production/rehearsal`; read its README and [Source-faithful rehearsal](references/rehearsal.md).
+This includes selected pinned MIT Stageshow layout/motion/contact-sheet scripts
+and a separate Playwright driver for measured real inputs, outcome assertions,
+editorial camera motion, named beats and trace screenshots. It does not include
+faux product UI or timer-driven state setters. Read ui-production.md first:
+real callbacks, traced state owners and service-boundary fixtures remain authoritative.
+Setup copies files only; it never installs dependencies, runs a server or executes
+a capture. Keep the toolkit's lockfile and the product's own dependency lockfile.
+
+For encoded media, use `evidence sheet --project PATH --id evidence-ID` after
+`evidence capture`. The PNG and labeled HTML use the original retained decoded
+frames and preserve the target ID/hash, cue names, times and frame hashes.
+Inspect the images and actual video/audio. Geometry findings are candidates;
+incomplete coverage is inconclusive. A clean report is not creative approval.
+
+For output discovery, use `outputs --project PATH` for integrity-checked registered
+video paths and labels, or `projects index` to write `~/.pocket-studio/index.html`
+with direct local links to each project's videos. This omits unregistered source
+scenes and checkpoint parts. It never moves media or calls the newest render
+approved/final. Open the returned HTML path in the local browser/Finder.
+Use `projects list --tag product-demo` to filter project tags.

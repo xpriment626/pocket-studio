@@ -1,9 +1,11 @@
 """Deterministic inspection mechanics; no transcription service or quality gate."""
 import difflib
+import html
 import math
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from .core import artifact, contained, digest, media_duration, new_id, now, probe, project_lock, read, save
@@ -119,6 +121,52 @@ def capture(root, item_id, sha256, spec):
 
 def words(text):
     return re.findall(r'[^\W_]+', text.casefold())
+
+
+def contact_sheet(root, evidence_id, columns=3, width=480):
+    """Build a sheet from exact decoded frames, never from approximate new seeks."""
+    if type(columns) is not int or not 1 <= columns <= 8 or type(width) is not int or not 160 <= width <= 960:
+        raise ValueError('Sheet columns must be 1..8 and cell width 160..960')
+    source = inspect_evidence(root, evidence_id)
+    if source['kind'] != 'frame_capture' or not source.get('frames'):
+        raise ValueError('Contact sheets require retained frame_capture evidence')
+    with project_lock(root):
+        data = read(root)
+        item = target(root, data, source['target']['id'], source['target']['sha256'])
+        for entry in source['files']:
+            if digest(contained(root, entry['path'])) != entry['sha256']:
+                raise ValueError('Evidence bytes changed')
+        directory = contained(root, 'evidence/' + new_id('evidence'))
+        directory.mkdir(parents=True)
+        frames = source['frames']
+        columns = min(columns, len(frames))
+        rows = math.ceil(len(frames) / columns)
+        output = directory / 'contact-sheet.png'
+        with tempfile.TemporaryDirectory(dir=directory) as temp:
+            for i, frame in enumerate(frames):
+                shutil.copyfile(contained(root, frame['path']), Path(temp) / f'{i:03}.png')
+                if digest(Path(temp) / f'{i:03}.png') != frame['sha256']:
+                    raise ValueError('Frame changed while building sheet')
+            filters = f'scale={width}:-2,tile={columns}x{rows}:nb_frames={len(frames)}:padding=8:margin=8:color=0x202020'
+            result = subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-framerate', '1',
+                '-i', str(Path(temp) / '%03d.png'), '-vf', filters, '-frames:v', '1', str(output)],
+                capture_output=True, text=True)
+            if result.returncode or not output.is_file():
+                raise ValueError('Contact sheet encoding failed; unattached directory retained')
+        cards = []
+        for i, frame in enumerate(frames):
+            label = f"{i + 1}. {frame['cue']} · requested {frame['requested_time']:.3f}s · decoded {frame['decoded_time']:.3f}s"
+            relative = Path('..') / '..' / frame['path']
+            cards.append(f'<figure><img src="{html.escape(relative.as_posix(), quote=True)}"><figcaption>{html.escape(label)}</figcaption></figure>')
+        page = directory / 'index.html'
+        page.write_text('<!doctype html><meta charset="utf-8"><title>Rehearsal contact sheet</title>'
+            '<style>body{background:#171717;color:#eee;font:14px system-ui}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}figure{margin:0}img{width:100%}</style>'
+            '<h1>Rehearsal contact sheet</h1><p>Captured frames only. Inspect motion and sound separately. No creative acceptance implied.</p><main>' + ''.join(cards) + '</main>')
+        files = source['files'] + [file_record(root, p) for p in (output, page)]
+        return commit_evidence(root, data, item, directory, 'contact_sheet', files,
+            {'capture_ref': evidence_id, 'columns': columns, 'cell_width': width,
+             'frames': frames, 'sheet': str(output.relative_to(root)), 'review': str(page.relative_to(root)),
+             'inspection_status': 'assembled; not visually inspected'})
 
 
 def compare_words(script, transcript):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pocket-studio"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local production primitives for Claude Code motion films"
 requires-python = ">=3.10"
 dependencies = []
@@ -26,4 +26,4 @@ mcp = ["mcp>=1.30,<2"]
 test = ["playwright>=1.50,<2"]
 
 [tool.setuptools.package-data]
-pocket_studio = ["ui/*.html", "ui/*.txt"]
+pocket_studio = ["ui/*.html", "ui/*.txt", "rehearsal/*.*", "rehearsal/STAGESHOW-LICENSE", "rehearsal/scripts/*.mjs", "rehearsal/fixture/*.*"]

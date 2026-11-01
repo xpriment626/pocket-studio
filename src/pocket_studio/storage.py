@@ -1,6 +1,7 @@
 """Local project registry and host-observed destination bindings. No network IO."""
 import os
 import re
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,55 @@ def registry(home):
     return data
 
 
+def semantic_slug(title):
+    if not isinstance(title, str) or not title.strip() or len(title) > 200:
+        raise ValueError('Project title must contain 1..200 characters')
+    normalized = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode().lower()
+    return re.sub(r'[^a-z0-9]+', '-', normalized).strip('-')[:64].rstrip('-') or 'untitled-film'
+
+
+def project_tags(values):
+    if not isinstance(values, list) or len(values) > 20:
+        raise ValueError('Supply at most 20 project tags')
+    return list(dict.fromkeys(semantic_slug(value) for value in values))
+
+
+def unique_slug(title, used):
+    base = semantic_slug(title)
+    candidate, suffix = base, 2
+    while candidate in used:
+        candidate = f'{base}-{suffix}'
+        suffix += 1
+    return candidate
+
+
+def readable_entries(entries):
+    entries = [dict(p) for p in entries]
+    used = {p['slug'] for p in entries if p.get('slug')}
+    for entry in entries:
+        if not entry.get('slug'):
+            entry['slug'] = unique_slug(entry['title'], used)
+            used.add(entry['slug'])
+    return entries
+
+
+def reserve_project(home, title):
+    """Reserve a readable directory atomically; never reuse an existing folder."""
+    with project_lock(home):
+        parent = contained(home, 'projects')
+        parent.mkdir(exist_ok=True)
+        used = {p.name for p in parent.iterdir()}
+        used.update(p.get('slug', '') for p in registry(home)['projects'])
+        while True:
+            slug = unique_slug(title, used)
+            root = contained(home, 'projects/' + slug)
+            try:
+                root.mkdir()
+                return root, slug
+            except FileExistsError:
+                used.add(slug)
+
+
 def register(home, root):
     root = root_at(root)
     if root == home:
@@ -38,6 +88,7 @@ def register(home, root):
     # Always acquire home before project when both locks are needed.
     with project_lock(home), project_lock(root):
         index = registry(home)
+        index['projects'] = readable_entries(index['projects'])
         data = read(root)
         pid = data['project_id'] if 'project_id' in data else new_id('project')
         if not isinstance(pid, str) or not re.fullmatch(r'project-[a-f0-9]{12}', pid):
@@ -50,7 +101,16 @@ def register(home, root):
         if 'project_id' not in data:
             data['project_id'] = pid
             save(contained(root, 'motion.json'), data)
-        item = {'id': pid, 'path': str(root), 'title': data['title']}
+        used = {p.get('slug', '') for p in index['projects'] if p['id'] != pid}
+        previous = next((p for p in index['projects'] if p['id'] == pid), None)
+        slug = data.get('slug') or (previous['slug'] if previous else unique_slug(data['title'], used))
+        if slug in used:
+            slug = unique_slug(slug, used)
+        data['slug'] = slug
+        data['tags'] = project_tags(data.get('tags', []))
+        save(contained(root, 'motion.json'), data)
+        item = {'slug': slug, 'title': data['title'], 'tags': data['tags'],
+                'id': pid, 'path': str(root)}
         index['projects'] = [p for p in index['projects'] if p['id'] != pid] + [item]
         save(contained(home, 'registry.json'), index)
         return item
@@ -58,9 +118,9 @@ def register(home, root):
 
 def projects(home, project_id=None):
     with project_lock(home):
-        entries = registry(home)['projects']
+        entries = readable_entries(registry(home)['projects'])
         if project_id is not None:
-            entries = [p for p in entries if p['id'] == project_id]
+            entries = [p for p in entries if p['id'] == project_id or p['slug'] == project_id]
             if not entries:
                 raise ValueError('Unknown project ID')
         result = []
@@ -69,6 +129,8 @@ def projects(home, project_id=None):
             try:
                 data = read(root_at(entry['path']))
                 item['available'] = data.get('project_id') == entry['id']
+                item['title'] = data['title']
+                item['tags'] = data.get('tags', [])
             except (ValueError, OSError, KeyError, TypeError):
                 item['available'] = False
             result.append(item)
@@ -77,6 +139,29 @@ def projects(home, project_id=None):
                 raise ValueError('Registered project unavailable or identity changed')
             return result[0]
         return {'projects': result, 'home': str(home)}
+
+
+def label_project(home, selector, title, tags=None):
+    semantic_slug(title)
+    tags = project_tags(tags) if tags is not None else None
+    entry = projects(home, selector)
+    root = root_at(entry['path'])
+    with project_lock(home), project_lock(root):
+        index = registry(home)
+        index['projects'] = readable_entries(index['projects'])
+        data = read(root)
+        if data.get('project_id') != entry['id']:
+            raise ValueError('Registered project identity changed')
+        data['title'] = title.strip()
+        data['slug'] = entry['slug']
+        if tags is not None:
+            data['tags'] = tags
+        save(contained(root, 'motion.json'), data)
+        item = dict(entry, title=data['title'], tags=data.get('tags', []))
+        item.pop('available', None)
+        index['projects'] = [item if p['id'] == entry['id'] else p for p in index['projects']]
+        save(contained(home, 'registry.json'), index)
+        return item
 
 
 ERRORS = {
