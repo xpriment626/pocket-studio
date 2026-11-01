@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 
 
 # Keep direct execution of this file compatible with the original CLI.
@@ -18,10 +18,15 @@ from pocket_studio.core import (now, digest, save, run, probe, media_duration,
 
 
 def init(args):
-    from pocket_studio.storage import home_at, register
+    from pocket_studio.storage import home_at, register, reserve_project, semantic_slug, project_tags
+    slug = semantic_slug(args.title)
+    tags = project_tags(args.tag)
     home = home_at(args.home) if args.directory is None or args.home else None
     pid = new_id('project')
-    root = Path(args.directory).resolve() if args.directory else contained(home, 'projects/' + pid)
+    if args.directory:
+        root = Path(args.directory).resolve()
+    else:
+        root, slug = reserve_project(home, args.title)
     if root == home:
         raise ValueError('Project directory must differ from managed home')
     root.mkdir(parents=True, exist_ok=True)
@@ -30,7 +35,8 @@ def init(args):
             raise ValueError('Project initialization refuses symlinked files')
     if (root / 'motion.json').exists():
         raise ValueError('Project already exists; refusing to overwrite')
-    save(root / 'motion.json', {'schema_version': 1, 'project_id': pid, 'title': args.title, 'created_at': now(),
+    save(root / 'motion.json', {'schema_version': 1, 'project_id': pid, 'title': args.title.strip(),
+         'slug': slug, 'tags': tags, 'intent': args.intent or args.title.strip(), 'created_at': now(),
          'format': {'width': 1920, 'height': 1080, 'fps': 30}, 'sources': [], 'renders': [], 'cuts': []})
     (root / 'BRIEF.md').write_text('# ' + args.title + '\n\n## Audience and intended effect\n\n## Product facts and source references\n\n## Creative freedom\n\n## Visual and sonic direction\n\n## Human acceptance criteria\n\nSuccess requires human review of motion and sound. Source slides are reference material, not the film timeline.\n')
     (root / 'TREATMENTS.md').write_text('# Treatments\n\nDevelop distinct visual ideas as style frames and short motion studies. Record the concept, source facts, camera, materials, sound and intended viewer understanding.\n')
@@ -206,12 +212,14 @@ def main():
     sub.add_parser('doctor', help='Report local tools and supported driver; session connectors require host discovery')
     p = sub.add_parser('init', help='Create a portable film project')
     p.add_argument('directory', nargs='?'); p.add_argument('--title', required=True); p.add_argument('--home')
+    p.add_argument('--intent'); p.add_argument('--tag', action='append', default=[])
     p = sub.add_parser('source', help='Copy and inspect reference material without executing it')
     ss = p.add_subparsers(dest='action', required=True)
     p = ss.add_parser('add'); p.add_argument('file'); p.add_argument('--project', required=True)
     p.add_argument('--role', choices=['reference', 'screen', 'recording', 'music', 'voice', 'sfx', 'data'], default='reference')
     p.add_argument('--note', default='')
     p = sub.add_parser('inspect', help='Read project manifest including stable source/artifact IDs'); p.add_argument('--project', required=True)
+    p = sub.add_parser('outputs', help='Locate registered videos with labels, absolute paths and integrity checks'); p.add_argument('--project', required=True)
     for name, description in [('render', 'Execute an explicit renderer argv spec; preserve logs and immutable output'), ('assemble', 'Trim and join authored shots/recordings with optional music')]:
         p = sub.add_parser(name, help=description); p.add_argument('--project', required=True); p.add_argument('--spec', required=True)
     p = sub.add_parser('review', help='Build local playback and feedback page'); p.add_argument('--project', required=True)
@@ -222,9 +230,12 @@ def main():
     p = sub.add_parser('projects', help='List, register or locate projects without moving files')
     p.add_argument('--home')
     ps = p.add_subparsers(dest='action', required=True)
-    ps.add_parser('list')
+    p = ps.add_parser('list'); p.add_argument('--tag', help='Filter projects by a semantic tag')
+    ps.add_parser('index', help='Build a local output index linking to original videos without moving them')
     p = ps.add_parser('register'); p.add_argument('directory')
     p = ps.add_parser('open'); p.add_argument('id')
+    p = ps.add_parser('label'); p.add_argument('id'); p.add_argument('--title', required=True)
+    p.add_argument('--tag', action='append', default=None)
     p = sub.add_parser('destination', help='Pin host-observed remote destination; no upload or sync')
     ds = p.add_subparsers(dest='action', required=True)
     p = ds.add_parser('bind'); p.add_argument('--project', required=True); p.add_argument('--receipt', required=True)
@@ -234,6 +245,11 @@ def main():
     p = es.add_parser('capture'); p.add_argument('--project', required=True)
     p.add_argument('--id', required=True); p.add_argument('--sha256', required=True); p.add_argument('--spec', required=True)
     p = es.add_parser('inspect'); p.add_argument('--project', required=True); p.add_argument('--id', required=True)
+    p = es.add_parser('sheet'); p.add_argument('--project', required=True); p.add_argument('--id', required=True)
+    p.add_argument('--columns', type=int, default=3); p.add_argument('--width', type=int, default=480)
+    p = sub.add_parser('rehearsal', help='Copy optional source-faithful choreography and Stageshow QA tools')
+    rs = p.add_subparsers(dest='action', required=True)
+    p = rs.add_parser('setup'); p.add_argument('--project', required=True)
     p = sub.add_parser('transcript', help='Compare actual-audio transcript evidence; no transcription service')
     ts = p.add_subparsers(dest='action', required=True)
     p = ts.add_parser('compare'); p.add_argument('--project', required=True)
@@ -241,20 +257,30 @@ def main():
         p.add_argument('--' + flag, required=True)
     args = parser.parse_args()
     try:
-        if args.command == 'evidence':
-            from pocket_studio.evidence import capture, inspect_evidence
+        if args.command == 'rehearsal':
+            from pocket_studio.rehearsal_tools import setup
+            result = setup(root_at(args.project))
+        elif args.command == 'evidence':
+            from pocket_studio.evidence import capture, inspect_evidence, contact_sheet
             root = root_at(args.project)
-            result = (inspect_evidence(root, args.id) if args.action == 'inspect' else
+            result = (contact_sheet(root, args.id, args.columns, args.width) if args.action == 'sheet' else
+                      inspect_evidence(root, args.id) if args.action == 'inspect' else
                       capture(root, args.id, args.sha256, json.loads(Path(args.spec).read_text())))
         elif args.command == 'transcript':
             from pocket_studio.evidence import transcript_compare
             result = transcript_compare(root_at(args.project), args.id, args.sha256,
                 args.script, args.raw, json.loads(Path(args.spec).read_text()))
         elif args.command == 'projects':
-            from pocket_studio.storage import home_at, register, projects
+            from pocket_studio.storage import home_at, register, projects, label_project
             home = home_at(args.home)
-            result = (register(home, args.directory) if args.action == 'register' else
+            from pocket_studio.outputs import output_index
+            result = (output_index(home) if args.action == 'index' else
+                      label_project(home, args.id, args.title, args.tag) if args.action == 'label' else
+                      register(home, args.directory) if args.action == 'register' else
                       projects(home, args.id if args.action == 'open' else None))
+            if args.action == 'list' and args.tag:
+                from pocket_studio.storage import semantic_slug
+                result['projects'] = [p for p in result['projects'] if semantic_slug(args.tag) in p.get('tags', [])]
         elif args.command == 'destination':
             from pocket_studio.storage import bind_destination, destination_status
             root = root_at(args.project)
@@ -271,6 +297,9 @@ def main():
                       'tools': {x: shutil.which(x) for x in ['ffmpeg', 'ffprobe', 'pdftotext', 'pdftoppm', 'blender', 'node']}}
         elif args.command == 'inspect':
             result = inspect_project(root_at(args.project))
+        elif args.command == 'outputs':
+            from pocket_studio.outputs import outputs
+            result = outputs(root_at(args.project))
         elif args.command in ('source', 'render', 'assemble'):
             with project_lock(root_at(args.project)):
                 result = {'source': add_source, 'render': render, 'assemble': assemble}[args.command](args)

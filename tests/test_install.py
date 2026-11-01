@@ -67,6 +67,17 @@ with patch.object(Path, 'home', return_value=Path(home)):
         self.install('--skills', 'none', success=False)
         self.assertEqual(launcher.read_text(), 'unrelated command')
 
+    def test_explicit_skill_replacement_leaves_one_current_copy(self):
+        self.install()
+        target = self.home / '.claude/skills/pocket-studio'
+        (target / 'SKILL.md').write_text('---\nname: pocket-studio\n---\nPrevious version')
+        (target / 'obsolete.md').write_text('old version')
+        self.install('--replace-skill')
+        self.assertFalse((target / 'obsolete.md').exists())
+        self.assertEqual((target / 'SKILL.md').read_bytes(), (ROOT / 'skills/pocket-studio/SKILL.md').read_bytes())
+        (target / 'SKILL.md').write_text('unrelated custom guidance')
+        self.install('--replace-skill', success=False)
+
 
 if __name__ == '__main__':
     unittest.main()

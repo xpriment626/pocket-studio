@@ -350,7 +350,7 @@ MCP account discovery or transport tools are claimed.
 ## Deferred buildout and local retest
 
 The production infrastructure includes the merged headless-review, managed-storage and evidence helpers. It does not implement
-contact sheets, automatic transcription/forced alignment,
+automatic transcription/forced alignment,
 render dependency snapshots, a current-take pointer, targeted rebuilds, remote
 transfers or provider clients. Existing source references and immutable artifact
 hashes remain available; they are not an incremental-render cache.
@@ -396,7 +396,7 @@ The helper decodes from the beginning and selects the first video frame at or
 after each requested time. This prioritizes reproducible timing over fast seeks.
 It records both requested and decoded timestamps, relative to the first decoded
 video frame, and rejects a frame that would land outside the cue. Capture PNGs
-are scaled to at most 960 pixels wide. This is a frame helper, not a contact-sheet
+are scaled to at most 960 pixels wide. Use `evidence sheet` below for contact sheets. This is a frame helper, not a
 layout engine or a replacement for watching motion and hearing sound.
 
 Each request creates a fresh `evidence/evidence-ID` containing the request and
@@ -471,3 +471,60 @@ Local retest additions: capture frames around a known cue, open the returned PNG
 check decoded timestamps against playback, and submit a real transcription-tool
 result for a disposable audio take. Verify a changed artifact or raw transcript
 hash is rejected and incorrect timing remains visible even with correct words.
+
+## Semantic projects and source-faithful rehearsal
+
+Claude Code infers a short title and useful tags from the user's intent at project
+startup. The CLI makes that title a safe readable folder, preserving a stable
+internal ID. It does not invoke a model or infer meaning from arbitrary text itself.
+
+```sh
+pocket-studio init --title 'Atlas contact sharing' --intent 'Show sharing a new contact' --tag atlas --tag product-demo
+pocket-studio projects open atlas-contact-sharing
+pocket-studio projects label atlas-contact-sharing --title 'Atlas sharing walkthrough' --tag atlas
+pocket-studio rehearsal setup --project PATH
+pocket-studio evidence sheet --project PATH --id evidence-ID --columns 3 --width 480
+```
+
+Same-title folders get numeric suffixes; occupied folders are never reused. Slugs
+and internal IDs remain stable on relabeling; labels and tags change without moving
+outputs. Existing projects remain in place and are addressable by readable selectors
+and their original IDs. Register legacy projects to persist the new metadata.
+
+The optional rehearsal toolkit includes a separate real-input Playwright driver
+with required outcome assertions and source provenance, measured camera framing,
+named beat screenshots, selected pinned Stageshow layout/motion checks and browser
+contact sheets. No faux UI kit or brand artwork is included. Read
+[the rehearsal workflow](skills/pocket-studio/references/rehearsal.md) and the copied
+toolkit README. Toolkit setup never installs dependencies or runs scene code.
+`npm ci --ignore-scripts` uses its retained lockfile; Chrome must be available.
+
+The existing render adapter handles encoded MP4. `evidence sheet` creates a PNG
+and timestamp-labeled HTML from exact-version captured frames, with revalidated
+media and evidence hashes. It does not establish motion quality, audio quality,
+source fidelity or human acceptance. Browser beat timestamps need an explicit
+mapping to encoded-video timestamps.
+
+Update an inspected existing Claude skill with `python3 install.py --replace-skill`.
+This explicitly replaces the recognized Pocket Studio skill in place, with no
+backup; unrelated commands and unrecognized custom skills are refused. Projects
+and media are outside the install path and remain untouched. Start a fresh Claude
+session for skill discovery.
+
+Rehearsal verification (optional Node/browser dependencies):
+
+```sh
+cd src/pocket_studio/rehearsal && npm ci --ignore-scripts
+cd ../../..
+node tests/rehearsal.test.mjs
+```
+
+The synthetic source-component fixture covers actual submit callbacks, saving,
+persistence, failure, reset, compact layout, reduced motion and QA reports. It is
+not an Atlas integration or host certification.
+
+To find actual encoded outputs among source scenes and checkpoint parts, run
+`pocket-studio outputs --project PATH` or `pocket-studio projects index` and open
+`~/.pocket-studio/index.html`. The index links to existing registered videos with
+labels and review status; it copies/moves no media and does not infer approval.
+Filter project listings with `projects list --tag atlas`.

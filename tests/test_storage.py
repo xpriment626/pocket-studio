@@ -42,7 +42,7 @@ class Storage(unittest.TestCase):
 
     def test_managed_identity_and_explicit_compatibility(self):
         root, pid = self.create()
-        self.assertEqual(root, self.home / 'projects' / pid)
+        self.assertEqual(root, self.home / 'projects' / 'a-title-is-not-a-path')
         self.assertEqual(self.call('projects', 'open', pid)['data']['path'], str(root))
         self.call('projects', 'register', root)
         self.assertEqual(len(self.call('projects', 'list')['data']['projects']), 1)
@@ -62,6 +62,40 @@ class Storage(unittest.TestCase):
         self.call('projects', 'open', pid, success=False)
         self.assertFalse(self.call('projects', 'list')['data']['projects'][0]['available'])
         self.call('projects', 'open', '../../etc', success=False)
+
+    def test_semantic_collisions_tags_label_and_legacy_reopen(self):
+        first = self.call('init', '--title', 'Atlas contact sharing', '--intent', 'Show contact sharing', '--tag', 'Product Demo')['data']
+        second = self.call('init', '--title', 'Atlas contact sharing')['data']
+        self.assertEqual(Path(first['project']).name, 'atlas-contact-sharing')
+        self.assertEqual(Path(second['project']).name, 'atlas-contact-sharing-2')
+        pid = first['registration']['id']
+        root = Path(first['project'])
+        artifact = root / 'renders/unchanged.txt'
+        artifact.parent.mkdir(); artifact.write_text('preserve output')
+        manifest = json.loads((root / 'motion.json').read_text())
+        self.assertEqual(manifest['intent'], 'Show contact sharing')
+        self.assertEqual(manifest['tags'], ['product-demo'])
+        self.assertEqual(len(self.call('projects', 'list', '--tag', 'Product Demo')['data']['projects']), 1)
+        self.assertEqual(self.call('projects', 'list', '--tag', 'unknown')['data']['projects'], [])
+        self.call('projects', 'label', 'atlas-contact-sharing', '--title', 'Atlas sharing revised', '--tag', 'Atlas')
+        item = self.call('projects', 'open', pid)['data']
+        self.assertEqual(item['title'], 'Atlas sharing revised')
+        self.assertEqual(item['tags'], ['atlas'])
+        self.assertEqual(self.call('projects', 'open', 'atlas-contact-sharing')['data']['path'], str(root))
+        self.assertEqual(artifact.read_text(), 'preserve output')
+        # Legacy registry/manifest entries acquire readable selectors without moving files.
+        index = json.loads((self.home / 'registry.json').read_text())
+        for entry in index['projects']:
+            entry.pop('slug', None); entry.pop('tags', None)
+        (self.home / 'registry.json').write_text(json.dumps(index))
+        for entry in index['projects']:
+            path = Path(entry['path']) / 'motion.json'
+            data = json.loads(path.read_text()); data.pop('slug', None); data.pop('tags', None)
+            path.write_text(json.dumps(data))
+        self.assertEqual(self.call('projects', 'open', 'atlas-sharing-revised')['data']['id'], pid)
+        self.call('projects', 'register', root)
+        self.assertEqual(self.call('projects', 'open', pid)['data']['path'], str(root))
+        self.assertEqual(artifact.read_text(), 'preserve output')
 
     def test_present_invalid_project_ids_are_rejected_without_mutation(self):
         root = self.base / 'legacy'
